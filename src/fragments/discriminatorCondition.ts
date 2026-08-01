@@ -1,19 +1,14 @@
 import {
     type ConstantDiscriminatorNode,
-    constantDiscriminatorNode,
-    constantValueNode,
-    constantValueNodeFromBytes,
     type DiscriminatorNode,
     type FieldDiscriminatorNode,
     isNode,
-    isNodeFilter,
     type ProgramNode,
     type SizeDiscriminatorNode,
     type StructTypeNode,
 } from '@codama/nodes';
 import { mapFragmentContent } from '@codama/renderers-core';
 import { pipe, visit } from '@codama/visitors-core';
-import { getBase64Decoder } from '@solana/codecs-strings';
 
 import { Fragment, fragment, mergeFragments, RenderScope, use } from '../utils';
 
@@ -23,11 +18,11 @@ import { Fragment, fragment, mergeFragments, RenderScope, use } from '../utils';
  *   return splTokenAccounts.TOKEN;
  * }
  *
- * if (containsBytes(data, getU32Encoder().encode(42), offset)) {
+ * if (containsBytes(data, getU32Encoder().encode(MY_ACCOUNT_DISCRIMINATOR), offset)) {
  *   return splTokenAccounts.TOKEN;
  * }
  *
- * if (containsBytes(data, new Uint8Array([1, 2, 3]), offset)) {
+ * if (containsBytes(data, MY_ACCOUNT_DISCRIMINATOR, offset)) {
  *   return splTokenAccounts.TOKEN;
  * }
  * ```
@@ -36,6 +31,7 @@ export function getDiscriminatorConditionFragment(
     scope: Pick<RenderScope, 'nameApi' | 'typeManifestVisitor'> & {
         dataName: string;
         discriminators: DiscriminatorNode[];
+        getDiscriminatorValue: (discriminator: ConstantDiscriminatorNode | FieldDiscriminatorNode) => Fragment;
         ifTrue: string;
         programNode: ProgramNode;
         struct: StructTypeNode;
@@ -75,10 +71,11 @@ function getByteConditionFragment(
     discriminator: ConstantDiscriminatorNode,
     scope: Pick<RenderScope, 'typeManifestVisitor'> & {
         dataName: string;
+        getDiscriminatorValue: (discriminator: ConstantDiscriminatorNode | FieldDiscriminatorNode) => Fragment;
     },
 ): Fragment {
-    const { dataName, typeManifestVisitor } = scope;
-    const constant = visit(discriminator.constant, typeManifestVisitor).value;
+    const { dataName } = scope;
+    const constant = scope.getDiscriminatorValue(discriminator);
     return fragment`${use('containsBytes', 'solanaCodecsCore')}(${dataName}, ${constant}, ${discriminator.offset})`;
 }
 
@@ -86,6 +83,7 @@ function getFieldConditionFragment(
     discriminator: FieldDiscriminatorNode,
     scope: Pick<RenderScope, 'typeManifestVisitor'> & {
         dataName: string;
+        getDiscriminatorValue: (discriminator: ConstantDiscriminatorNode | FieldDiscriminatorNode) => Fragment;
         struct: StructTypeNode;
     },
 ): Fragment {
@@ -96,26 +94,6 @@ function getFieldConditionFragment(
         );
     }
 
-    // This handles the case where a field uses an u8 array to represent its discriminator.
-    // In this case, we can simplify the generated code by delegating to a constantDiscriminatorNode.
-    const defaultValueItems = isNode(field.defaultValue, 'arrayValueNode') ? (field.defaultValue.items ?? []) : [];
-    if (
-        isNode(field.type, 'arrayTypeNode') &&
-        isNode(field.type.item, 'numberTypeNode') &&
-        field.type.item.format === 'u8' &&
-        isNode(field.type.count, 'fixedCountNode') &&
-        isNode(field.defaultValue, 'arrayValueNode') &&
-        defaultValueItems.every(isNodeFilter('numberValueNode'))
-    ) {
-        const base64Bytes = getBase64Decoder().decode(new Uint8Array(defaultValueItems.map(node => node.number)));
-        return getByteConditionFragment(
-            constantDiscriminatorNode(constantValueNodeFromBytes('base64', base64Bytes), discriminator.offset),
-            scope,
-        );
-    }
-
-    return getByteConditionFragment(
-        constantDiscriminatorNode(constantValueNode(field.type, field.defaultValue), discriminator.offset),
-        scope,
-    );
+    const typeManifest = visit(field.type, scope.typeManifestVisitor);
+    return fragment`${use('containsBytes', 'solanaCodecsCore')}(${scope.dataName}, ${typeManifest.encoder}.encode(${scope.getDiscriminatorValue(discriminator)}), ${discriminator.offset})`;
 }

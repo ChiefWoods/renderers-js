@@ -1,4 +1,12 @@
-import { ProgramNode, resolveNestedTypeNode } from '@codama/nodes';
+import {
+    camelCase,
+    ConstantDiscriminatorNode,
+    DiscriminatorNode,
+    FieldDiscriminatorNode,
+    isNodeFilter,
+    ProgramNode,
+    resolveNestedTypeNode,
+} from '@codama/nodes';
 
 import { Fragment, fragment, mergeFragments, RenderScope, use } from '../utils';
 import { getDiscriminatorConditionFragment } from './discriminatorCondition';
@@ -50,6 +58,13 @@ function getProgramAccountsIdentifierFunctionFragment(
                 ...scope,
                 dataName: 'data',
                 discriminators: account.discriminators ?? [],
+                getDiscriminatorValue: discriminator =>
+                    getAccountDiscriminatorConstantFragment(
+                        account.name,
+                        account.discriminators ?? [],
+                        discriminator,
+                        nameApi,
+                    ),
                 ifTrue: `return ${programAccountsEnum}.${variant};`,
                 struct: resolveNestedTypeNode(account.data),
             });
@@ -66,4 +81,27 @@ function getProgramAccountsIdentifierFunctionFragment(
     ${discriminatorsFragment}
     throw new ${solanaError}(${solanaErrorCode}, { accountData: data, programName: "${programNode.name}" });
 }`;
+}
+
+function getAccountDiscriminatorConstantFragment(
+    accountName: string,
+    discriminators: DiscriminatorNode[],
+    discriminator: ConstantDiscriminatorNode | FieldDiscriminatorNode,
+    nameApi: RenderScope['nameApi'],
+): Fragment {
+    const name =
+        discriminator.kind === 'constantDiscriminatorNode'
+            ? getConstantDiscriminatorName(accountName, discriminators, discriminator)
+            : `${accountName}_${discriminator.name}`;
+    return fragment`${use(nameApi.constant(camelCase(name)), 'generatedAccounts')}`;
+}
+
+function getConstantDiscriminatorName(
+    accountName: string,
+    discriminators: DiscriminatorNode[],
+    discriminator: ConstantDiscriminatorNode,
+): string {
+    const index = discriminators.filter(isNodeFilter('constantDiscriminatorNode')).indexOf(discriminator);
+    const suffix = index <= 0 ? '' : `_${index + 1}`;
+    return `${accountName}_discriminator${suffix}`;
 }

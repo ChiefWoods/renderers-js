@@ -34,12 +34,15 @@ import {
     type SelfFetchFunctions,
     type SelfPlanAndSendFunctions,
 } from '@solana/kit/program-client-core';
-import { getGuardV1Codec, type GuardV1, type GuardV1Args } from '../accounts';
+import { getGuardV1Codec, GUARD_V1_DISCRIMINATOR, type GuardV1, type GuardV1Args } from '../accounts';
 import {
+    CREATE_GUARD_DISCRIMINATOR,
+    EXECUTE_DISCRIMINATOR,
     getCreateGuardInstructionAsync,
     getExecuteInstructionAsync,
     getInitializeInstructionAsync,
     getUpdateGuardInstructionAsync,
+    INITIALIZE_DISCRIMINATOR,
     parseCreateGuardInstruction,
     parseExecuteInstruction,
     parseInitializeInstruction,
@@ -52,6 +55,7 @@ import {
     type ParsedInitializeInstruction,
     type ParsedUpdateGuardInstruction,
     type UpdateGuardAsyncInput,
+    UPDATE_GUARD_DISCRIMINATOR,
 } from '../instructions';
 import { findExtraMetasAccountPda, findGuardPda } from '../pdas';
 
@@ -66,13 +70,7 @@ export function identifyWenTransferGuardAccount(
     account: { data: ReadonlyUint8Array } | ReadonlyUint8Array,
 ): WenTransferGuardAccount {
     const data = 'data' in account ? account.data : account;
-    if (
-        containsBytes(
-            data,
-            fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([185, 149, 156, 78, 245, 108, 172, 68])),
-            0,
-        )
-    ) {
+    if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(GUARD_V1_DISCRIMINATOR), 0)) {
         return WenTransferGuardAccount.GuardV1;
     }
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_ACCOUNT, {
@@ -92,40 +90,16 @@ export function identifyWenTransferGuardInstruction(
     instruction: { data: ReadonlyUint8Array } | ReadonlyUint8Array,
 ): WenTransferGuardInstruction {
     const data = 'data' in instruction ? instruction.data : instruction;
-    if (
-        containsBytes(
-            data,
-            fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([251, 254, 17, 198, 219, 218, 154, 99])),
-            0,
-        )
-    ) {
+    if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(CREATE_GUARD_DISCRIMINATOR), 0)) {
         return WenTransferGuardInstruction.CreateGuard;
     }
-    if (
-        containsBytes(
-            data,
-            fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([105, 37, 101, 197, 75, 251, 102, 26])),
-            0,
-        )
-    ) {
+    if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(EXECUTE_DISCRIMINATOR), 0)) {
         return WenTransferGuardInstruction.Execute;
     }
-    if (
-        containsBytes(
-            data,
-            fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([43, 34, 13, 49, 167, 88, 235, 235])),
-            0,
-        )
-    ) {
+    if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(INITIALIZE_DISCRIMINATOR), 0)) {
         return WenTransferGuardInstruction.Initialize;
     }
-    if (
-        containsBytes(
-            data,
-            fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([51, 38, 175, 180, 25, 249, 39, 24])),
-            0,
-        )
-    ) {
+    if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(UPDATE_GUARD_DISCRIMINATOR), 0)) {
         return WenTransferGuardInstruction.UpdateGuard;
     }
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_INSTRUCTION, {

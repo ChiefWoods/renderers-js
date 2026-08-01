@@ -1,6 +1,11 @@
 import {
+    camelCase,
+    ConstantDiscriminatorNode,
+    DiscriminatorNode,
+    FieldDiscriminatorNode,
     getAllInstructionsWithSubs,
     InstructionNode,
+    isNodeFilter,
     ProgramNode,
     structTypeNodeFromInstructionArgumentNodes,
 } from '@codama/nodes';
@@ -67,6 +72,13 @@ function getProgramInstructionsIdentifierFunctionFragment(
                 ...scope,
                 dataName: 'data',
                 discriminators: instruction.discriminators ?? [],
+                getDiscriminatorValue: discriminator =>
+                    getInstructionDiscriminatorConstantFragment(
+                        instruction.name,
+                        instruction.discriminators ?? [],
+                        discriminator,
+                        nameApi,
+                    ),
                 ifTrue: `return ${programInstructionsEnum}.${variant};`,
                 struct: structTypeNodeFromInstructionArgumentNodes(instruction.arguments ?? []),
             });
@@ -83,6 +95,29 @@ function getProgramInstructionsIdentifierFunctionFragment(
     ${discriminatorsFragment}
     throw new ${solanaError}(${solanaErrorCode}, { instructionData: data, programName: "${programNode.name}" });
 }`;
+}
+
+function getInstructionDiscriminatorConstantFragment(
+    instructionName: string,
+    discriminators: DiscriminatorNode[],
+    discriminator: ConstantDiscriminatorNode | FieldDiscriminatorNode,
+    nameApi: RenderScope['nameApi'],
+): Fragment {
+    const name =
+        discriminator.kind === 'constantDiscriminatorNode'
+            ? getConstantDiscriminatorName(instructionName, discriminators, discriminator)
+            : `${instructionName}_${discriminator.name}`;
+    return fragment`${use(nameApi.constant(camelCase(name)), 'generatedInstructions')}`;
+}
+
+function getConstantDiscriminatorName(
+    instructionName: string,
+    discriminators: DiscriminatorNode[],
+    discriminator: ConstantDiscriminatorNode,
+): string {
+    const index = discriminators.filter(isNodeFilter('constantDiscriminatorNode')).indexOf(discriminator);
+    const suffix = index <= 0 ? '' : `_${index + 1}`;
+    return `${instructionName}_discriminator${suffix}`;
 }
 
 function getProgramInstructionsParsedUnionTypeFragment(

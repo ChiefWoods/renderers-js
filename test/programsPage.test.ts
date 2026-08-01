@@ -93,14 +93,15 @@ test('it renders an function that identifies accounts in a program', async () =>
     await renderMapContains(renderMap, 'programs/splToken.ts', [
         `export function identifySplTokenAccount( account: { data: ReadonlyUint8Array } | ReadonlyUint8Array ): SplTokenAccount { ` +
             `const data = 'data' in account ? account.data : account; ` +
-            `if ( containsBytes(data, getU8Encoder().encode(5), 0) ) { return SplTokenAccount.Metadata; } ` +
-            `if ( data.length === 72 && containsBytes(data, new Uint8Array([1, 2, 3]), 4) ) { return SplTokenAccount.Token; } ` +
+            `if ( containsBytes(data, getU8Encoder().encode(METADATA_KEY), 0) ) { return SplTokenAccount.Metadata; } ` +
+            `if ( data.length === 72 && containsBytes(data, TOKEN_DISCRIMINATOR, 4) ) { return SplTokenAccount.Token; } ` +
             `throw new SolanaError( SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_ACCOUNT, { accountData: data, programName: 'splToken' } ); ` +
             `}`,
     ]);
 
     // And we expect the following imports.
     await renderMapContainsImports(renderMap, 'programs/splToken.ts', {
+        '../accounts': ['METADATA_KEY', 'TOKEN_DISCRIMINATOR'],
         '@solana/kit': [
             'containsBytes',
             'ReadonlyUint8Array',
@@ -170,14 +171,15 @@ test('it renders an function that identifies instructions in a program', async (
     await renderMapContains(renderMap, 'programs/splToken.ts', [
         `export function identifySplTokenInstruction ( instruction: { data: ReadonlyUint8Array } | ReadonlyUint8Array ): SplTokenInstruction { ` +
             `const data = 'data' in instruction ? instruction.data : instruction; ` +
-            `if ( containsBytes(data, getU8Encoder().encode(1), 0) ) { return SplTokenInstruction.MintTokens; } ` +
-            `if ( data.length === 72 && containsBytes(data, new Uint8Array([1, 2, 3]), 4) ) { return SplTokenInstruction.TransferTokens; } ` +
+            `if ( containsBytes(data, getU8Encoder().encode(MINT_TOKENS_DISCRIMINATOR), 0) ) { return SplTokenInstruction.MintTokens; } ` +
+            `if ( data.length === 72 && containsBytes(data, TRANSFER_TOKENS_DISCRIMINATOR, 4) ) { return SplTokenInstruction.TransferTokens; } ` +
             `throw new SolanaError( SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_INSTRUCTION, { instructionData: data, programName: 'splToken' } ); ` +
             `}`,
     ]);
 
     // And we expect the following imports.
     await renderMapContainsImports(renderMap, 'programs/splToken.ts', {
+        '../instructions': ['MINT_TOKENS_DISCRIMINATOR', 'TRANSFER_TOKENS_DISCRIMINATOR'],
         '@solana/kit': ['containsBytes', 'ReadonlyUint8Array'],
     });
 });
@@ -234,10 +236,7 @@ test('it checks the discriminator of sub-instructions before their parents.', as
 
     // Then we expect the sub-instruction condition to be rendered before the parent instruction condition.
     await renderMapContains(renderMap, 'programs/splToken.ts', [
-        `if ( containsBytes(data, getU8Encoder().encode(1), 0) && containsBytes(data, getU32Encoder().encode(1), 1) ) ` +
-            `{ return SplTokenInstruction.MintTokensV1; } ` +
-            `if ( containsBytes(data, getU8Encoder().encode(1), 0) ) ` +
-            `{ return SplTokenInstruction.MintTokens; }`,
+        /getU8Encoder\(\)\.encode\(MINT_TOKENS_V1_PARENT_DISCRIMINATOR\)[\s\S]*getU32Encoder\(\)\.encode\(MINT_TOKENS_V1_SUB_DISCRIMINATOR\)[\s\S]*return SplTokenInstruction\.MintTokensV1;[\s\S]*getU8Encoder\(\)\.encode\(MINT_TOKENS_PARENT_DISCRIMINATOR\)[\s\S]*return SplTokenInstruction\.MintTokens;/,
     ]);
 });
 
