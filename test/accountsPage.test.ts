@@ -113,6 +113,7 @@ test('it renders constants for account field discriminators', async () => {
     // And we expect the field default value to use that constant.
     await renderMapContains(renderMap, 'accounts/myAccount.ts', [
         'export const MY_ACCOUNT_MY_DISCRIMINATOR = 42;',
+        'export type MyAccount = {};',
         'export function getMyAccountMyDiscriminatorBytes(): ReadonlyUint8Array { return getU8Encoder().encode(MY_ACCOUNT_MY_DISCRIMINATOR); }',
         '(value) => ({ ...value, myDiscriminator: MY_ACCOUNT_MY_DISCRIMINATOR })',
     ]);
